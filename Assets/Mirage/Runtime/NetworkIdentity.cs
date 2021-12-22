@@ -9,6 +9,10 @@ using UnityEngine.Serialization;
 
 namespace Mirage
 {
+    using System.Diagnostics;
+    using System.Linq;
+    using Debug = UnityEngine.Debug;
+
     /// <summary>
     /// The NetworkIdentity identifies objects across the network, between server and clients.
     /// Its primary data is a NetworkInstanceId which is allocated by the server and then set on clients.
@@ -31,12 +35,12 @@ namespace Mirage
     ///     The NetworkIdentity manages the dirty state of the NetworkBehaviours of the object.
     ///     When it discovers that NetworkBehaviours are dirty, it causes an update packet to be created and sent to clients.
     /// </para>
-    /// 
+    ///
     /// <list type="bullet">
     ///     <listheader><description>
     ///         The flow for serialization updates managed by the NetworkIdentity is:
     ///     </description></listheader>
-    ///     
+    ///
     ///     <item><description>
     ///         Each NetworkBehaviour has a dirty mask. This mask is available inside OnSerialize as syncVarDirtyBits
     ///     </description></item>
@@ -72,12 +76,12 @@ namespace Mirage
     ///         The UpdateVars packet is sent to ready clients that are observing the object
     ///     </description></item>
     /// </list>
-    /// 
+    ///
     /// <list type="bullet">
     ///     <listheader><description>
     ///         On the client:
     ///     </description></listheader>
-    /// 
+    ///
     ///     <item><description>
     ///         an UpdateVars packet is received for an object
     ///     </description></item>
@@ -235,7 +239,17 @@ namespace Mirage
                 if (networkBehavioursCache != null)
                     return networkBehavioursCache;
 
-                NetworkBehaviour[] components = GetComponentsInChildren<NetworkBehaviour>(true);
+                NetworkBehaviour[] childNetworkBehaviours = Array.Empty<NetworkBehaviour>();
+                if (testMode == TestMode.List)
+                {
+                    ChildNetworkBehavioursCache.Clear();
+                    GetComponentsInChildren<NetworkBehaviour>(true, ChildNetworkBehavioursCache);
+                }
+                else
+                {
+                    childNetworkBehaviours = GetComponentsInChildren<NetworkBehaviour>(true);
+                }
+                var components = FilterChildNetworkBehaviours(childNetworkBehaviours);
 
 #if DEBUG
                 foreach (NetworkBehaviour item in components)
@@ -251,6 +265,116 @@ namespace Mirage
                 return networkBehavioursCache;
             }
         }
+
+
+        // TODO: remove this region after testing LINQ vs Array performance
+        #region LINQ vs Array performance test
+
+        public float dude;
+
+        [Serializable]
+        public enum TestMode
+        {
+            LINQ,
+            Array,
+            List
+        }
+
+        [Header("[TEMPORARY] testing")]
+        public TestMode testMode;
+
+        private static List<NetworkBehaviour> ChildNetworkBehavioursCache = new List<NetworkBehaviour>(11);
+        private static int LastChildrenCount = 0;
+
+        private NetworkBehaviour[] FilterChildNetworkBehaviours(NetworkBehaviour[] childNetworkBehaviours)
+        {
+            var stopwatch = new Stopwatch();
+            stopwatch.Restart();
+
+            var filtered = testMode switch
+            {
+                TestMode.LINQ => FilterChildNetworkBehavioursLINQ(childNetworkBehaviours),
+                TestMode.Array => FilterChildNetworkBehavioursArray(childNetworkBehaviours),
+                TestMode.List => FilterChildNetworkBehavioursList(childNetworkBehaviours),
+                _ => throw new ArgumentOutOfRangeException()
+            };
+
+            stopwatch.Stop();
+            double elapsedMs = (double)stopwatch.Elapsed.Ticks / Stopwatch.Frequency * 1000d;
+
+            int originalCount = childNetworkBehaviours.Length;
+            int filteredCount = filtered.Length;
+
+            Debug.Log($"'{gameObject.name}' filtered {originalCount} NetworkBehaviours in {elapsedMs:f3} ms using {testMode}. " +
+                      $"{filteredCount}/{originalCount} belong to this NetworkIdentity.");
+
+            return filtered;
+        }
+
+        // based on https://github.com/MirageNet/Mirage/pull/1006#issuecomment-998386034
+        private NetworkBehaviour[] FilterChildNetworkBehavioursLINQ(NetworkBehaviour[] childNetworkBehaviours)
+        {
+            var filtered = childNetworkBehaviours.Where(item => (item.Identity == this)).ToArray();
+            return filtered;
+        }
+
+        // based on https://github.com/MirageNet/Mirage/pull/970
+        private NetworkBehaviour[] FilterChildNetworkBehavioursArray(NetworkBehaviour[] components)
+        {
+            // keep track of read and write index
+            // if we find a NB that belongs to another NI then we set it to null
+            // then if any have been set to null we shift the remaining NB down to the write index as we continue the loop
+            // after the loop we resize the array if we have removed any
+            int w = 0;
+            for (int r = 0; r < components.Length; r++)
+            {
+                NetworkBehaviour item = components[r];
+                if (item.Identity != this)
+                {
+                    // if (logger.LogEnabled()) logger.Log($"Child NetworkBehaviour had a different Identity, this:{name}, Child Identity:{item.Identity.name}");
+                    components[r] = null;
+                    continue;
+                }
+
+                if (r != w)
+                {
+                    // logger.Assert(components[r] == null, "Overwriting component in array");
+                    components[r] = components[w];
+                }
+                w++;
+            }
+
+            if (w != components.Length)
+            {
+                Array.Resize(ref components, w);
+            }
+
+            return components;
+        }
+
+        // another alternative
+        private NetworkBehaviour[] FilterChildNetworkBehavioursList(NetworkBehaviour[] childNetworkBehaviours)
+        {
+            int linkedNetworkBehaviourIndex = 0;
+            for (int r = 0; r < ChildNetworkBehavioursCache.Count; r++)
+            {
+                var item = ChildNetworkBehavioursCache[r];
+                if (item.Identity != this) continue;
+
+                ChildNetworkBehavioursCache[linkedNetworkBehaviourIndex] = item;
+                linkedNetworkBehaviourIndex++;
+            }
+
+            // copy part of the list containing linked NBs to a new array
+            int linkedNetworkBehavioursCount = linkedNetworkBehaviourIndex;
+            Debug.Log(linkedNetworkBehavioursCount);
+            var components = new NetworkBehaviour[linkedNetworkBehavioursCount];
+            ChildNetworkBehavioursCache.CopyTo(0, components, 0, linkedNetworkBehavioursCount);
+
+            return components;
+        }
+
+        #endregion
 
         NetworkVisibility _visibility;
         public NetworkVisibility Visibility
