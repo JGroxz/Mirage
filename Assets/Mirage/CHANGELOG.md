@@ -1,3 +1,34 @@
+# [113.3.0](https://github.com/MirageNet/Mirage/compare/v113.2.0...v113.3.0) (2021-12-22)
+
+
+### Bug Fixes
+
+* **NetworkBehaviour:** can now found NetworkIdentity in parent when gameobject is disabled ([#1006](https://github.com/MirageNet/Mirage/issues/1006)) ([d54537a](https://github.com/MirageNet/Mirage/commit/d54537a8c0a136130d4f8cf91a4e779bdb992221))
+
+
+### Features
+
+* **SyncVar:** option to invoke hooks on server too ([#1012](https://github.com/MirageNet/Mirage/issues/1012)) ([8c12c28](https://github.com/MirageNet/Mirage/commit/8c12c280467c8f68e9e96344bf6143db9b032a9f))
+
+# [113.2.0](https://github.com/MirageNet/Mirage/compare/v113.1.3...v113.2.0) (2021-12-20)
+
+
+### Bug Fixes
+
+* **Serialization:** fixing ReadArray when reading items that are bitpacked ([6dfbf84](https://github.com/MirageNet/Mirage/commit/6dfbf846c5456b7a80f4d5c8d3977426e4bff4c5))
+
+
+### Features
+
+* **Serialization:** adding CanReadBits function to network reader ([3aae955](https://github.com/MirageNet/Mirage/commit/3aae955c8e30b87e9b005323febc9f1831c45bb7))
+
+## [113.1.3](https://github.com/MirageNet/Mirage/compare/v113.1.2...v113.1.3) (2021-12-20)
+
+
+### Bug Fixes
+
+* fix a typo with NetworkServer disconnection logs, improve comments, fix formatting ([#1005](https://github.com/MirageNet/Mirage/issues/1005)) ([adcf3f6](https://github.com/MirageNet/Mirage/commit/adcf3f659c70c2fe8d425546d6018915370db736))
+
 ## [113.1.2](https://github.com/MirageNet/Mirage/compare/v113.1.1...v113.1.2) (2021-12-08)
 
 
